@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/atetov/cjk-press/pkg/compress"
 
 	"github.com/spf13/cobra"
 )
@@ -18,7 +19,11 @@ var decompressCmd = &cobra.Command{
 			outputFile = inputFile + ".txt"
 		}
 		fmt.Printf("Decompressing %s to %s...\n", inputFile, outputFile)
-		fmt.Println("Decompression logic will be implemented in Phase 2")
+		if err := compress.DecompressFile(inputFile, outputFile); err != nil {
+			fmt.Printf("decompression failed: %v\n", err)
+			return
+		}
+		fmt.Println("Decompression complete")
 	},
 }
 
