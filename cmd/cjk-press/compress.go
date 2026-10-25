@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/atetov/cjk-press/pkg/compress"
+	"github.com/ateto3/cjk-press/pkg/compress"
 
 	"github.com/spf13/cobra"
 )

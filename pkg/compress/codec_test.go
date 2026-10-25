@@ -2,6 +2,8 @@ package compress
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -107,6 +109,158 @@ func TestConcurrentSequentialCompatibility(t *testing.T) {
 	if !bytes.Equal(input, decoded.Bytes()) {
 		t.Fatalf("consequential compatibility failed")
 	}
+}
+
+// TestHybridZlib tests thatCompressWithZlib + DecompressWithZlib round-trips correctly.
+func TestHybridZlib(t *testing.T) {
+	input := []byte("标题：你好，世界！ Hello こんにちは 안녕하세요\n你好，世界！")
+	var encoded bytes.Buffer
+	if err := CompressWithZlib(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(encoded.Bytes(), []byte{'C', 'J', 'K', 'Z'}) {
+		t.Fatalf("expected zlib magic prefix, got %q", encoded.Bytes()[:4])
+	}
+	var decoded bytes.Buffer
+	if err := DecompressWithZlib(&encoded, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(input, decoded.Bytes()) {
+		t.Fatalf("zlib round trip changed input: %q", decoded.Bytes())
+	}
+}
+
+// TestHybridGzip tests that CompressWithGzip + DecompressWithGzip round-trips correctly.
+func TestHybridGzip(t *testing.T) {
+	input := []byte("标题：你好，世界！ Hello こんにちは 안녕하세요\n你好，世界！")
+	var encoded bytes.Buffer
+	if err := CompressWithGzip(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(encoded.Bytes(), []byte{'C', 'J', 'K', 'G'}) {
+		t.Fatalf("expected gzip magic prefix, got %q", encoded.Bytes()[:4])
+	}
+	var decoded bytes.Buffer
+	if err := DecompressWithGzip(&encoded, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(input, decoded.Bytes()) {
+		t.Fatalf("gzip round trip changed input: %q", decoded.Bytes())
+	}
+}
+
+// TestHybridZlibRejectsBadMagic verifies that DecompressWithZlib rejects non-zlib data.
+func TestHybridZlibRejectsBadMagic(t *testing.T) {
+	if err := DecompressWithZlib(bytes.NewReader([]byte("CJK1")), &bytes.Buffer{}); err == nil {
+		t.Fatal("expected invalid format error for zlib magic mismatch")
+	}
+}
+
+// TestHybridGzipRejectsBadMagic verifies that DecompressWithGzip rejects non-gzip data.
+func TestHybridGzipRejectsBadMagic(t *testing.T) {
+	if err := DecompressWithGzip(bytes.NewReader([]byte("CJK1")), &bytes.Buffer{}); err == nil {
+		t.Fatal("expected invalid format error for gzip magic mismatch")
+	}
+}
+
+// TestCompressFileWithZlib round-trips through a file.
+func TestCompressFileWithZlib(t *testing.T) {
+	input := "中文测试文本\n" + realChineseText
+	tmpDir := t.TempDir()
+	inputPath := filepath.Join(tmpDir, "input.txt")
+	outputPath := filepath.Join(tmpDir, "output.cjk.zlib")
+	if err := os.WriteFile(inputPath, []byte(input), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := CompressFileWithZlib(inputPath, outputPath); err != nil {
+		t.Fatal(err)
+	}
+	var decoded bytes.Buffer
+	if err := DecompressWithZlib(bytes.NewReader(readFile(t, outputPath)), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal([]byte(input), decoded.Bytes()) {
+		t.Fatalf("file round trip changed input")
+	}
+}
+
+// TestDecompressFileWithZlib round-trips through a file.
+func TestDecompressFileWithZlib(t *testing.T) {
+	input := "中文测试文本\n" + realChineseText
+	tmpDir := t.TempDir()
+	inputPath := filepath.Join(tmpDir, "input.txt")
+	outputPath := filepath.Join(tmpDir, "output.cjk.zlib")
+	if err := os.WriteFile(inputPath, []byte(input), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var encoded bytes.Buffer
+	if err := CompressWithZlib(&encoded, []byte(input)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outputPath, encoded.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var decoded bytes.Buffer
+	if err := DecompressWithZlib(bytes.NewReader(readFile(t, outputPath)), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal([]byte(input), decoded.Bytes()) {
+		t.Fatalf("file round trip changed input")
+	}
+}
+
+// TestCompressFileWithGzip round-trips through a file.
+func TestCompressFileWithGzip(t *testing.T) {
+	input := "中文测试文本\n" + realChineseText
+	tmpDir := t.TempDir()
+	inputPath := filepath.Join(tmpDir, "input.txt")
+	outputPath := filepath.Join(tmpDir, "output.cjk.gz")
+	if err := os.WriteFile(inputPath, []byte(input), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := CompressFileWithGzip(inputPath, outputPath); err != nil {
+		t.Fatal(err)
+	}
+	var decoded bytes.Buffer
+	if err := DecompressWithGzip(bytes.NewReader(readFile(t, outputPath)), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal([]byte(input), decoded.Bytes()) {
+		t.Fatalf("file round trip changed input")
+	}
+}
+
+// TestDecompressFileWithGzip round-trips through a buffer (not file path).
+func TestDecompressFileWithGzip(t *testing.T) {
+	input := "中文测试文本\n" + realChineseText
+	tmpDir := t.TempDir()
+	inputPath := filepath.Join(tmpDir, "input.txt")
+	outputPath := filepath.Join(tmpDir, "output.cjk.gz")
+	if err := os.WriteFile(inputPath, []byte(input), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var encoded bytes.Buffer
+	if err := CompressWithGzip(&encoded, []byte(input)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outputPath, encoded.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var decoded bytes.Buffer
+	if err := DecompressWithGzip(bytes.NewReader(readFile(t, outputPath)), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal([]byte(input), decoded.Bytes()) {
+		t.Fatalf("file round trip changed input")
+	}
+}
+
+func readFile(t *testing.T, path string) []byte {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }
 
 // Real-world Chinese text samples for testing

@@ -2,6 +2,9 @@ package compress
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
+	"compress/zlib"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,8 +13,8 @@ import (
 	"sort"
 	"unicode/utf8"
 
-	"github.com/atetov/cjk-press/pkg/pipeline"
-	"github.com/atetov/cjk-press/pkg/segment"
+	"github.com/ateto3/cjk-press/pkg/pipeline"
+	"github.com/ateto3/cjk-press/pkg/segment"
 )
 
 var magic = [4]byte{'C', 'J', 'K', '1'}
@@ -339,6 +342,207 @@ func DecompressFileConcurrent(input, output string, numWorkers int) error {
 		return err
 	}
 	if err = DecompressConcurrent(in, out, numWorkers); err != nil {
+		_ = out.Close()
+		_ = os.Remove(output)
+		return err
+	}
+	return out.Close()
+}
+
+var (
+	magicZlib = [4]byte{'C', 'J', 'K', 'Z'}
+	magicGzip = [4]byte{'C', 'J', 'K', 'G'}
+)
+
+// CompressWithZlib applies CJK dictionary compression followed by zlib
+// compression. The output is not compatible with the plain .cjk format and
+// must be decompressed with DecompressWithZlib.
+func CompressWithZlib(w io.Writer, input []byte) error {
+	var cjkBuf bytes.Buffer
+	if err := Compress(&cjkBuf, input); err != nil {
+		return err
+	}
+
+	bw := bufio.NewWriter(w)
+	if _, err := bw.Write(magicZlib[:]); err != nil {
+		return err
+	}
+	zw := zlib.NewWriter(bw)
+	if _, err := zw.Write(cjkBuf.Bytes()); err != nil {
+		return err
+	}
+	if err := zw.Close(); err != nil {
+		return err
+	}
+	return bw.Flush()
+}
+
+// DecompressWithZlib reverses CompressWithZlib: first zlib-decompresses,
+// then applies CJK dictionary decompression.
+func DecompressWithZlib(r io.Reader, w io.Writer) error {
+	br := bufio.NewReader(r)
+	var got [4]byte
+	if _, err := io.ReadFull(br, got[:]); err != nil {
+		return err
+	}
+	if got != magicZlib {
+		return ErrInvalidFormat
+	}
+	zr, err := zlib.NewReader(br)
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+
+	var cjkBuf bytes.Buffer
+	if _, err := cjkBuf.ReadFrom(zr); err != nil {
+		return err
+	}
+	return Decompress(&cjkBuf, w)
+}
+
+// CompressWithGzip applies CJK dictionary compression followed by gzip
+// compression. The output is not compatible with the plain .cjk format and
+// must be decompressed with DecompressWithGzip.
+func CompressWithGzip(w io.Writer, input []byte) error {
+	var cjkBuf bytes.Buffer
+	if err := Compress(&cjkBuf, input); err != nil {
+		return err
+	}
+
+	bw := bufio.NewWriter(w)
+	if _, err := bw.Write(magicGzip[:]); err != nil {
+		return err
+	}
+	gw := gzip.NewWriter(bw)
+	if _, err := gw.Write(cjkBuf.Bytes()); err != nil {
+		return err
+	}
+	if err := gw.Close(); err != nil {
+		return err
+	}
+	return bw.Flush()
+}
+
+// DecompressWithGzip reverses CompressWithGzip: first gzip-decompresses,
+// then applies CJK dictionary decompression.
+func DecompressWithGzip(r io.Reader, w io.Writer) error {
+	br := bufio.NewReader(r)
+	var got [4]byte
+	if _, err := io.ReadFull(br, got[:]); err != nil {
+		return err
+	}
+	if got != magicGzip {
+		return ErrInvalidFormat
+	}
+	gr, err := gzip.NewReader(br)
+	if err != nil {
+		return err
+	}
+	defer gr.Close()
+
+	var cjkBuf bytes.Buffer
+	if _, err := cjkBuf.ReadFrom(gr); err != nil {
+		return err
+	}
+	return Decompress(&cjkBuf, w)
+}
+
+// CompressFileWithZlib compresses a file using CJK + zlib hybrid compression.
+func CompressFileWithZlib(input, output string) error {
+	in, err := os.Open(input)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	data, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+	out, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	ok := false
+	defer func() {
+		if !ok {
+			_ = out.Close()
+			_ = os.Remove(output)
+		}
+	}()
+	if err = CompressWithZlib(out, data); err != nil {
+		return err
+	}
+	if err = out.Close(); err != nil {
+		return err
+	}
+	ok = true
+	return nil
+}
+
+// DecompressFileWithZlib decompresses a file compressed with CompressWithZlib.
+func DecompressFileWithZlib(input, output string) error {
+	in, err := os.Open(input)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	if err = DecompressWithZlib(in, out); err != nil {
+		_ = out.Close()
+		_ = os.Remove(output)
+		return err
+	}
+	return out.Close()
+}
+
+// CompressFileWithGzip compresses a file using CJK + gzip hybrid compression.
+func CompressFileWithGzip(input, output string) error {
+	in, err := os.Open(input)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	data, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+	out, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	ok := false
+	defer func() {
+		if !ok {
+			_ = out.Close()
+			_ = os.Remove(output)
+		}
+	}()
+	if err = CompressWithGzip(out, data); err != nil {
+		return err
+	}
+	if err = out.Close(); err != nil {
+		return err
+	}
+	ok = true
+	return nil
+}
+
+// DecompressFileWithGzip decompresses a file compressed with CompressWithGzip.
+func DecompressFileWithGzip(input, output string) error {
+	in, err := os.Open(input)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	if err = DecompressWithGzip(in, out); err != nil {
 		_ = out.Close()
 		_ = os.Remove(output)
 		return err

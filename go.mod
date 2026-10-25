@@ -1,4 +1,4 @@
-module github.com/atetov/cjk-press
+module github.com/ateto3/cjk-press
 
 go 1.25.6
 

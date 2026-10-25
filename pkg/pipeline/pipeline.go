@@ -3,8 +3,8 @@ package pipeline
 import (
 	"sync"
 
-	"github.com/atetov/cjk-press/pkg/dictionary"
-	"github.com/atetov/cjk-press/pkg/segment"
+	"github.com/ateto3/cjk-press/pkg/dictionary"
+	"github.com/ateto3/cjk-press/pkg/segment"
 )
 
 // BlockResult contains the segmented parts and local dictionary for one block
