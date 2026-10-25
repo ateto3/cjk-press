@@ -10,7 +10,7 @@ import (
 func TestRoundTrip(t *testing.T) {
 	input := []byte("标题：你好，世界！ Hello こんにちは 안녕하세요\n你好，世界！")
 	var encoded bytes.Buffer
-	if err := Compress(&encoded, input); err != nil {
+	if err := Compress(&encoded, input, "zh"); err != nil {
 		t.Fatal(err)
 	}
 	var decoded bytes.Buffer
@@ -31,7 +31,7 @@ func TestRejectsBadMagic(t *testing.T) {
 func TestConcurrentRoundTrip(t *testing.T) {
 	input := []byte("标题：你好，世界！ Hello こんにちは 안녕하세요\n你好，世界！")
 	var encoded bytes.Buffer
-	if err := CompressConcurrent(&encoded, input, 1000, 4); err != nil {
+	if err := CompressConcurrent(&encoded, input, 1000, 4, "zh"); err != nil {
 		t.Fatal(err)
 	}
 	var decoded bytes.Buffer
@@ -53,7 +53,7 @@ func TestConcurrentLargeTextRoundTrip(t *testing.T) {
 	data := []byte(input)
 
 	var encoded bytes.Buffer
-	if err := CompressConcurrent(&encoded, data, 500, 8); err != nil {
+	if err := CompressConcurrent(&encoded, data, 500, 8, "zh"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -69,7 +69,7 @@ func TestConcurrentLargeTextRoundTrip(t *testing.T) {
 func TestConcurrentMixedScriptsRoundTrip(t *testing.T) {
 	input := []byte(realChineseText + " " + realJapaneseText + " " + realKoreanText)
 	var encoded bytes.Buffer
-	if err := CompressConcurrent(&encoded, input, 300, 3); err != nil {
+	if err := CompressConcurrent(&encoded, input, 300, 3, "zh"); err != nil {
 		t.Fatal(err)
 	}
 	var decoded bytes.Buffer
@@ -83,7 +83,7 @@ func TestConcurrentMixedScriptsRoundTrip(t *testing.T) {
 
 func TestConcurrentEmptyInput(t *testing.T) {
 	var encoded bytes.Buffer
-	if err := CompressConcurrent(&encoded, []byte{}, 1000, 4); err != nil {
+	if err := CompressConcurrent(&encoded, []byte{}, 1000, 4, "zh"); err != nil {
 		t.Fatal(err)
 	}
 	var decoded bytes.Buffer
@@ -99,7 +99,7 @@ func TestConcurrentSequentialCompatibility(t *testing.T) {
 	// Verify that output from CompressConcurrent can be decompressed by Decompress
 	input := []byte("标题：你好，世界！ Hello こんにちは 안녕하세요\n你好，世界！")
 	var encoded bytes.Buffer
-	if err := CompressConcurrent(&encoded, input, 100, 2); err != nil {
+	if err := CompressConcurrent(&encoded, input, 100, 2, "zh"); err != nil {
 		t.Fatal(err)
 	}
 	var decoded bytes.Buffer

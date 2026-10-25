@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/ateto3/cjk-press/pkg/dictionary"
+	"github.com/ateto3/cjk-press/pkg/morphseg"
 	"github.com/ateto3/cjk-press/pkg/segment"
 )
 
@@ -15,8 +16,16 @@ type BlockResult struct {
 }
 
 // processBlock segments one block of text and builds a local dictionary of CJK terms
-func processBlock(id int, text string, maxRunes int) BlockResult {
-	parts := segment.Segment(text, maxRunes)
+func processBlock(id int, text string, maxRunes int, lang string) BlockResult {
+	var parts []string
+	switch lang {
+	case "zh", "zh-cn", "zh-hans", "zh-hant", "cmn":
+		// Use HMM/Viterbi morphological segmenter for Chinese
+		parts = morphsegSegmenter(text, maxRunes)
+	default:
+		// Use language-aware segmentation for Korean and Japanese
+		parts = segment.SegmentLanguage(text, lang, maxRunes)
+	}
 	dict := dictionary.NewDictionary()
 	for _, p := range parts {
 		runes := []rune(p)
@@ -27,13 +36,25 @@ func processBlock(id int, text string, maxRunes int) BlockResult {
 	return BlockResult{ID: id, Parts: parts, Dict: dict}
 }
 
+// morphsegSegmenter uses the HMM/Viterbi morphological segmenter for Chinese text.
+// It first tries to detect if the text is Chinese; if not, it falls back to the
+// legacy fixed-size max-match partitioner for non-Chinese CJK text.
+func morphsegSegmenter(text string, maxRunes int) []string {
+	if morphseg.IsChineseText(text) {
+		s := morphseg.NewSegmenter()
+		return s.Segment(text)
+	}
+	// Fallback: use legacy segmentation for mixed/Korean/Japanese text
+	return segment.Segment(text, maxRunes)
+}
+
 // ProcessText splits text into rune-based blocks, processes each block
 // concurrently using a worker pool and channels, then merges all local
 // dictionaries into a single global dictionary.
 //
 // Returns the parts for each block (in original order) and the merged
 // global dictionary. An error is returned only for invalid parameters.
-func ProcessText(text string, blockSizeRunes int, numWorkers int, maxRunes int) ([][]string, *dictionary.Dictionary, error) {
+func ProcessText(text string, blockSizeRunes int, numWorkers int, maxRunes int, lang string) ([][]string, *dictionary.Dictionary, error) {
 	if blockSizeRunes < 1 {
 		blockSizeRunes = 10000
 	}
@@ -66,7 +87,7 @@ func ProcessText(text string, blockSizeRunes int, numWorkers int, maxRunes int) 
 		go func() {
 			defer wg.Done()
 			for id := range jobs {
-				results <- processBlock(id, blocks[id], maxRunes)
+				results <- processBlock(id, blocks[id], maxRunes, lang)
 			}
 		}()
 	}
