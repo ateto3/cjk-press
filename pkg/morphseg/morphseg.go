@@ -154,6 +154,13 @@ func (s *Segmenter) Segment(text string) []string {
 		}
 	}
 
+	// Flush any pending word that wasn't terminated by End or Single.
+	// This can happen when a block boundary cuts through the middle of a
+	// multi-character word, leaving the final rune tagged as Begin/Middle.
+	if wordStart < n {
+		result = append(result, string(runes[wordStart:]))
+	}
+
 	return result
 }
 
