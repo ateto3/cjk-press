@@ -1,0 +1,56 @@
+project_name: cjk-press
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    main: ./cmd/cjk-press
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksums:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+brews:
+  - name: cjk-press
+    homepage: https://github.com/atetov/cjk-press
+    tap:
+      owner: atetov
+      name: homebrew-tap
+    commit_author:
+      name: goreleaser-bot
+      email: bot@goreleaser.com
+
+scoop:
+  bucket:
+    owner: atetov
+    name: scoop-bucket
+  commit_author:
+    name: goreleaser-bot
+    email: bot@goreleaser.com

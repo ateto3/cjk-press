@@ -27,22 +27,61 @@ In CJK languages, the scenario changes drastically:
 
 ## Installation
 
-To install the CLI tool, make sure you have Go installed and run:
+### From Source
+To install the CLI tool from source, make sure you have Go 1.21 or higher installed:
 
 ```bash
-go install ://github.com
+go install github.com/atetov/cjk-press/cmd/cjk-press@latest
+```
+
+### From Release Binaries
+Download the latest release from the [GitHub Releases](https://github.com/atetov/cjk-press/releases) page for your platform (Linux, macOS, or Windows).
+
+### Using Homebrew (macOS/Linux)
+```bash
+brew tap atetov/homebrew-tap
+brew install cjk-press
+```
+
+### Using Scoop (Windows)
+```powershell
+scoop bucket add atetov/scoop-bucket
+scoop install cjk-press
+```
+
+### Using Docker
+```bash
+docker pull atetov/cjk-press:latest
+docker run --rm -v $(pwd):/data atetov/cjk-press compress /data/input.txt
 ```
 
 ## Basic Usage
 
 ### Compress a file
 ```bash
-cjk-press compress -i chinese_file.txt -o file.cjk
+# Basic compression (output file will be input.cjk)
+cjk-press compress chinese_file.txt
+
+# Specify output file
+cjk-press compress chinese_file.txt -o compressed.cjk
 ```
 
 ### Decompress a file
 ```bash
-cjk-press decompress -i file.cjk -o restored_file.txt
+# Basic decompression (output file will be input.txt)
+cjk-press decompress compressed.cjk
+
+# Specify output file
+cjk-press decompress compressed.cjk -o restored_file.txt
+```
+
+### Using stdin/stdout for streaming
+```bash
+# Compress from stdin
+cat chinese_file.txt | cjk-press compress -o output.cjk
+
+# Decompress to stdout
+cjk-press decompress compressed.cjk -o -
 ```
 
 ## Contributing
